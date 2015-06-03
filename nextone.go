@@ -13,11 +13,11 @@ import (
 	"github.com/mgutz/ansi"
 )
 
-var tagsFlag = flag.String("t", "", "Filter by tag. Tags list separated by ','")
-var statusFlag = flag.String("s", "", "Filter by status. Status list separated by ','")
+var tagsFlag = flag.String("t", "", "Filter by tag. Tags list separated by ','.")
+var statusFlag = flag.String("s", "", "Filter by status. Status list separated by ','.")
 var findTextFlag = flag.String("f", "", "Find text in task.")
-var recomputeIDFlag = flag.Bool("recomputeId", false, "Recompute id for all task. Warning! this will change all ids")
-var jsonFlag = flag.Bool("json", false, "Print json db")
+var recomputeIDFlag = flag.Bool("recomputeId", false, "Recompute id for all tasks. Warning! this will change all ids.")
+var jsonFlag = flag.Bool("json", false, "Print tasks in json format.")
 
 // Task represents what we have to do
 type Task struct {
