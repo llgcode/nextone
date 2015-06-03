@@ -167,7 +167,7 @@ func main() {
 		for _, task := range db.Tasks {
 			fmt.Fprintln(stdout, task.AnsiString())
 		}
-		fmt.Printf("%d tasks.\n.", len(db.Tasks))
+		fmt.Printf("%d tasks.\n", len(db.Tasks))
 	}
 
 }
