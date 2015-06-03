@@ -15,6 +15,7 @@ import (
 
 var tagsFlag = flag.String("t", "", "Filter by tag. Tags list separated by ','")
 var statusFlag = flag.String("s", "", "Filter by status. Status list separated by ','")
+var findTextFlag = flag.String("f", "", "Find text in task.")
 var recomputeIDFlag = flag.Bool("recomputeId", false, "Recompute id for all task. Warning! this will change all ids")
 var jsonFlag = flag.Bool("json", false, "Print json db")
 
@@ -34,7 +35,8 @@ func (t TaskByTime) Len() int           { return len(t) }
 func (t TaskByTime) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t TaskByTime) Less(i, j int) bool { return t[i].Created < t[j].Created }
 
-func (t Task) String() string {
+// AnsiString provide string with ansi color escapes
+func (t Task) AnsiString() string {
 	date := time.Unix(t.Created/1000, 0)
 	var ansiStatus string
 	if t.Status == "pending" || t.Status == "open" {
@@ -42,7 +44,7 @@ func (t Task) String() string {
 	} else if t.Status == "done" {
 		ansiStatus = ansi.Color(t.Status, "90")
 	}
-	return fmt.Sprintf("%d %s %s\n  (%s) %s", t.ID, ansiStatus, ansi.Color(t.Text, "100"), ansi.Color(strings.Join(t.Tags, ", "), "80"), date.Format("2006-01-02"))
+	return fmt.Sprintf("%d %s %s\n  (%s) %s", t.ID, ansiStatus, ansi.Color(t.Text, "80"), ansi.Color(strings.Join(t.Tags, ", "), "90"), date.Format("2006-01-02"))
 }
 
 // JSONDb is a Task database in json
@@ -67,6 +69,17 @@ func FilterByStatus(tasks []Task, status []string) []Task {
 	var result []Task
 	for _, task := range tasks {
 		if status[0] == "" || contains(status, task.Status) {
+			result = append(result, task)
+		}
+	}
+	return result
+}
+
+// FilterByText return tasks list that have contains text
+func FilterByText(tasks []Task, text string) []Task {
+	var result []Task
+	for _, task := range tasks {
+		if strings.Index(strings.ToLower(task.Text), strings.ToLower(text)) != -1 {
 			result = append(result, task)
 		}
 	}
@@ -111,11 +124,15 @@ func main() {
 			fmt.Print(err)
 			return
 		}
-		defer f.Close()
 		decoder = json.NewDecoder(f)
+		defer f.Close()
 	}
 
-	decoder.Decode(&db)
+	err := decoder.Decode(&db)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	tags := strings.Split(*tagsFlag, ",")
 	status := strings.Split(*statusFlag, ",")
@@ -131,9 +148,11 @@ func main() {
 			count++
 		}
 	}
+
 	// Filter
 	db.Tasks = FilterByTags(db.Tasks, tags)
 	db.Tasks = FilterByStatus(db.Tasks, status)
+	db.Tasks = FilterByText(db.Tasks, *findTextFlag)
 
 	// Print result
 	if *jsonFlag {
@@ -146,7 +165,7 @@ func main() {
 
 	} else {
 		for _, task := range db.Tasks {
-			fmt.Fprintln(stdout, task)
+			fmt.Fprintln(stdout, task.AnsiString())
 		}
 		fmt.Printf("%d tasks.\n.", len(db.Tasks))
 	}
