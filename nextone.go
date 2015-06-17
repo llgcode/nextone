@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/user"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +15,13 @@ import (
 	"github.com/mgutz/ansi"
 )
 
+// DbFileName is the default file name find in user home
+const DbFileName = "db.task"
+
+// DbEnvPath is an environment variable that helps configure db path
+const DbEnvPath = "NEXTONE_DB_PATH"
+
+var dbFlag = flag.String("db", "", "Db path.")
 var tagsFlag = flag.String("t", "", "Filter by tag. Tags list separated by ','.")
 var statusFlag = flag.String("s", "", "Filter by status. Status list separated by ','.")
 var findTextFlag = flag.String("f", "", "Find text in task.")
@@ -115,20 +124,33 @@ func main() {
 	// Open file database
 	var db JSONDb
 	var decoder *json.Decoder
-	if len(flag.Args()) == 0 {
-		decoder = json.NewDecoder(os.Stdin)
-	} else {
-		f, err := os.Open(flag.Arg(0))
-		if err != nil {
-			// Stop if the file opening failed
-			fmt.Print(err)
-			return
+	var dbPath string
+	if *dbFlag == "" {
+		// open db.task file in user home
+		dbPath = os.Getenv(DbEnvPath)
+		if dbPath == "" {
+			u, err := user.Current()
+			if err != nil {
+				fmt.Print(err)
+				return
+			}
+			dbPath = filepath.Join(u.HomeDir, DbFileName)
 		}
-		decoder = json.NewDecoder(f)
-		defer f.Close()
-	}
 
-	err := decoder.Decode(&db)
+	} else {
+		dbPath = *dbFlag
+	}
+	// open db file
+	f, err := os.Open(dbPath)
+	if err != nil {
+		// Stop if the file opening failed
+		fmt.Print(err)
+		return
+	}
+	decoder = json.NewDecoder(f)
+	defer f.Close()
+
+	err = decoder.Decode(&db)
 	if err != nil {
 		fmt.Println(err)
 		return
