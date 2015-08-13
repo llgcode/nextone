@@ -1,2 +1,2 @@
 # nextone
-Developper oriented every day task manager 
+Developper oriented every day task tracker 
