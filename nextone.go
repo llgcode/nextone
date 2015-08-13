@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/mattn/go-colorable"
 	"github.com/mgutz/ansi"
+	"github.com/peterh/liner"
 )
 
 // DbFileName is the default file name find in user home
@@ -22,98 +24,8 @@ const DbFileName = "db.task"
 const DbEnvPath = "NEXTONE_DB_PATH"
 
 var dbFlag = flag.String("db", "", "Db path.")
-var tagsFlag = flag.String("t", "", "Filter by tag. Tags list separated by ','.")
-var statusFlag = flag.String("s", "", "Filter by status. Status list separated by ','.")
-var findTextFlag = flag.String("f", "", "Find text in task.")
-var recomputeIDFlag = flag.Bool("recomputeId", false, "Recompute id for all tasks. Warning! this will change all ids.")
-var jsonFlag = flag.Bool("json", false, "Print tasks in json format.")
 
-// Task represents what we have to do
-type Task struct {
-	ID      int      `json:"id"`      // Id of the task
-	Created int64    `json:"created"` // timestamp when it has been created
-	Text    string   `json:"text"`    // Text description of the Task
-	Status  string   `json:"status"`  // Status of the task
-	Tags    []string `json:"tags"`    // Tags of the task
-}
-
-// TaskByTime sort by timestamp
-type TaskByTime []Task
-
-func (t TaskByTime) Len() int           { return len(t) }
-func (t TaskByTime) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t TaskByTime) Less(i, j int) bool { return t[i].Created < t[j].Created }
-
-// AnsiString provide string with ansi color escapes
-func (t Task) AnsiString() string {
-	date := time.Unix(t.Created/1000, 0)
-	var ansiStatus string
-	if t.Status == "pending" || t.Status == "open" {
-		ansiStatus = ansi.Color(t.Status, "94")
-	} else if t.Status == "done" {
-		ansiStatus = ansi.Color(t.Status, "90")
-	}
-	return fmt.Sprintf("%d %s %s\n  (%s) %s", t.ID, ansiStatus, ansi.Color(t.Text, "80"), ansi.Color(strings.Join(t.Tags, ", "), "90"), date.Format("2006-01-02"))
-}
-
-// JSONDb is a Task database in json
-type JSONDb struct {
-	Tags  []string // List of existing tags that can be used for a task
-	Tasks []Task   // List of tasks
-}
-
-// FilterByTags return tasks list that have one the tags
-func FilterByTags(tasks []Task, tags []string) []Task {
-	var result []Task
-	for _, task := range tasks {
-		if tags[0] == "" || containsOne(tags, task.Tags) {
-			result = append(result, task)
-		}
-	}
-	return result
-}
-
-// FilterByStatus return tasks list that have one of the status
-func FilterByStatus(tasks []Task, status []string) []Task {
-	var result []Task
-	for _, task := range tasks {
-		if status[0] == "" || contains(status, task.Status) {
-			result = append(result, task)
-		}
-	}
-	return result
-}
-
-// FilterByText return tasks list that have contains text
-func FilterByText(tasks []Task, text string) []Task {
-	var result []Task
-	for _, task := range tasks {
-		if strings.Index(strings.ToLower(task.Text), strings.ToLower(text)) != -1 {
-			result = append(result, task)
-		}
-	}
-	return result
-}
-
-func containsOne(strs1 []string, strs2 []string) bool {
-	for _, str1 := range strs1 {
-		for _, str2 := range strs2 {
-			if strings.ToLower(str1) == strings.ToLower(str2) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func contains(strs []string, s string) bool {
-	for _, str := range strs {
-		if strings.ToLower(str) == strings.ToLower(s) {
-			return true
-		}
-	}
-	return false
-}
+var dbPath string
 
 func main() {
 	// Ensure that we have an ansi enabled terminal
@@ -121,10 +33,7 @@ func main() {
 	stdout := colorable.NewColorableStdout()
 
 	flag.Parse()
-	// Open file database
-	var db JSONDb
-	var decoder *json.Decoder
-	var dbPath string
+
 	if *dbFlag == "" {
 		// open db.task file in user home
 		dbPath = os.Getenv(DbEnvPath)
@@ -140,56 +49,98 @@ func main() {
 	} else {
 		dbPath = *dbFlag
 	}
-	// open db file
-	f, err := os.Open(dbPath)
-	if err != nil {
-		// Stop if the file opening failed
-		fmt.Print(err)
-		return
-	}
-	decoder = json.NewDecoder(f)
-	defer f.Close()
 
-	err = decoder.Decode(&db)
+	// Open file database
+	db, err := openDatabase(dbPath)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
-	tags := strings.Split(*tagsFlag, ",")
-	status := strings.Split(*statusFlag, ",")
-
 	// sort task
 	sort.Sort(TaskByTime(db.Tasks))
 
-	// be sure we have an id
-	if *recomputeIDFlag {
-		count := 1
-		for i := range db.Tasks {
-			db.Tasks[i].ID = count
-			count++
-		}
+	interactive(stdout, db)
+}
+
+func openDatabase(dbPath string) (*JSONDb, error) {
+	var db JSONDb
+	// open db file
+	f, err := os.Open(dbPath)
+	if err != nil {
+		return nil, err
 	}
+	decoder := json.NewDecoder(f)
+	defer f.Close()
 
-	// Filter
-	db.Tasks = FilterByTags(db.Tasks, tags)
-	db.Tasks = FilterByStatus(db.Tasks, status)
-	db.Tasks = FilterByText(db.Tasks, *findTextFlag)
+	err = decoder.Decode(&db)
+	if err != nil {
+		return nil, err
+	}
+	return &db, nil
+}
 
-	// Print result
-	if *jsonFlag {
-		result, err := json.MarshalIndent(db, "", " ")
-		if err != nil {
-			fmt.Println(err)
+func backupDatabase(dbPath string) (err error) {
+	// open db file
+	in, err := os.Open(dbPath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	// open db bakup file
+	out, err := os.Create(dbPath + "_bak")
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return nil
+}
+
+func saveDatabase(dbPath string, db *JSONDb) (err error) {
+	// open db file
+	f, err := os.Create(dbPath)
+	if err != nil {
+		return err
+	}
+	result, err := json.MarshalIndent(db, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(f, string(result))
+	return nil
+}
+
+func interactive(stdout io.Writer, db *JSONDb) {
+	line := liner.NewLiner()
+	defer line.Close()
+
+	line.SetCtrlCAborts(true)
+
+	line.SetCompleter(func(line string) (c []string) {
+		for _, cmd := range commands {
+			if strings.HasPrefix(cmd.Name, strings.ToLower(line)) {
+				c = append(c, cmd.Name)
+			}
+		}
+		return
+	})
+
+	mainPrompt(line, stdout, db)
+}
+
+func mainPrompt(line *liner.State, stdout io.Writer, db *JSONDb) {
+	if cmdLine, err := line.Prompt("nextone> "); err == nil {
+		if cmdLine == "quit" {
 			return
 		}
-		fmt.Fprintln(stdout, string(result))
-
+		execCommand(stdout, db, line, cmdLine)
+		line.AppendHistory(cmdLine)
+		mainPrompt(line, stdout, db)
+	} else if err == liner.ErrPromptAborted {
+		log.Print("Aborted")
 	} else {
-		for _, task := range db.Tasks {
-			fmt.Fprintln(stdout, task.AnsiString())
-		}
-		fmt.Printf("%d tasks.\n", len(db.Tasks))
+		log.Print("Error reading line: ", err)
 	}
-
 }
