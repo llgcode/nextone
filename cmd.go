@@ -71,24 +71,25 @@ func showTask(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 func listTasks(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	cmdArgs := tokenize(cmdLine)
 	// Filter
+	filteredTasks := db.Tasks
 	if len(cmdArgs) > 1 {
 		status := strings.Split(cmdArgs[1], ",")
-		db.Tasks = FilterByStatus(db.Tasks, status)
+		filteredTasks = FilterByStatus(filteredTasks, status)
 	}
 	if len(cmdArgs) > 2 {
 		tags := strings.Split(cmdArgs[2], ",")
-		db.Tasks = FilterByTags(db.Tasks, tags)
+		filteredTasks = FilterByTags(filteredTasks, tags)
 	}
 	if len(cmdArgs) > 3 {
 		search := cmdArgs[3]
-		db.Tasks = FilterByText(db.Tasks, search)
+		filteredTasks = FilterByText(filteredTasks, search)
 	}
 
 	// Print result
-	for _, task := range db.Tasks {
+	for _, task := range filteredTasks {
 		fmt.Fprintln(stdout, task.AnsiString())
 	}
-	fmt.Printf("%d tasks.\n", len(db.Tasks))
+	fmt.Printf("%d tasks.\n", len(filteredTasks))
 
 }
 
