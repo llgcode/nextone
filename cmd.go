@@ -64,8 +64,11 @@ func showTask(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	}
 	task := findByID(db.Tasks, id)
 	// Print result
-	fmt.Fprintln(stdout, task.AnsiString())
-
+	if task != nil {
+		fmt.Fprintln(stdout, task.AnsiString())
+	} else {
+		fmt.Printf("Can't find the task %d\n", id)
+	}
 }
 
 func listTasks(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
