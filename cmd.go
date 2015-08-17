@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/peterh/liner"
 )
@@ -25,6 +26,7 @@ func init() {
 		{"help", "help <cmd> show help of a command", help},
 		{"show", "Show specific task by id", showTask},
 		{"list", "List task by status task and search criteria", listTasks},
+		{"add", "Add a task", addTask},
 		{"json", "Print all tasks in json", printJSON},
 		{"save", "Save the database", save},
 		{"recomputeIds", "Recompute id for all tasks. Warning! this will change all ids.", recomputeIds},
@@ -96,6 +98,31 @@ func listTasks(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) 
 
 }
 
+func addTask(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
+	var task Task
+	task.ID = db.GenerateID()
+	task.Status = "open"
+	task.Created = time.Now().Unix()
+	if len(cmdLine) > 4 {
+		task.Text = cmdLine[4:]
+	} else {
+		text, err := line.Prompt("text:")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		task.Text = text
+	}
+	tagStr, err := line.Prompt("tags:")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	task.Tags = strings.Split(tagStr, ",")
+	db.Tasks = append(db.Tasks, task)
+	fmt.Printf("Task %d created\n", task.ID)
+}
+
 func setStatus(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	cmdArgs := tokenize(cmdLine)
 	if len(cmdArgs) == 3 {
@@ -114,7 +141,7 @@ func setStatus(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) 
 }
 
 func save(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
-	backupDatabase(dbPath)
+	backupDatabase(dbPath, "_bak")
 	saveDatabase(dbPath, db)
 }
 

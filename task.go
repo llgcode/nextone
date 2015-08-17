@@ -40,6 +40,13 @@ func (t Task) AnsiString() string {
 type JSONDb struct {
 	Tags  []string // List of existing tags that can be used for a task
 	Tasks []Task   // List of tasks
+	IDGen int      // used to generate a new id
+}
+
+// GenerateID generate a new id incrementing IDGen
+func (db *JSONDb) GenerateID() int {
+	db.IDGen++
+	return db.IDGen
 }
 
 func findByID(tasks []Task, id int) *Task {

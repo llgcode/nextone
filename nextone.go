@@ -76,10 +76,16 @@ func openDatabase(dbPath string) (*JSONDb, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	for _, task := range db.Tasks {
+		if task.ID >= db.IDGen {
+			db.IDGen = task.ID
+		}
+	}
 	return &db, nil
 }
 
-func backupDatabase(dbPath string) (err error) {
+func backupDatabase(dbPath string, suffix string) (err error) {
 	// open db file
 	in, err := os.Open(dbPath)
 	if err != nil {
@@ -87,7 +93,7 @@ func backupDatabase(dbPath string) (err error) {
 	}
 	defer in.Close()
 	// open db bakup file
-	out, err := os.Create(dbPath + "_bak")
+	out, err := os.Create(dbPath + suffix)
 	if err != nil {
 		return err
 	}
