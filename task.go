@@ -33,7 +33,7 @@ func (t Task) AnsiString() string {
 	} else if t.Status == "done" {
 		ansiStatus = ansi.Color(t.Status, "90")
 	}
-	return fmt.Sprintf("%d %s %s\n  (%s) %s", t.ID, ansiStatus, ansi.Color(t.Text, "80"), ansi.Color(strings.Join(t.Tags, ", "), "90"), date.Format("2006-01-02"))
+	return fmt.Sprintf("%d %s %s\n  (%s) %s", t.ID, ansiStatus, ansi.Color(t.Text, "80"), ansi.Color(strings.Join(t.Tags, ", "), "90"), date.Format("02-01-2006"))
 }
 
 // JSONDb is a Task database in json

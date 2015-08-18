@@ -102,7 +102,7 @@ func addTask(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	var task Task
 	task.ID = db.GenerateID()
 	task.Status = "open"
-	task.Created = time.Now().UnixNano()
+	task.Created = time.Now().UnixNano() / 1000000
 	if len(cmdLine) > 4 {
 		task.Text = cmdLine[4:]
 	} else {
