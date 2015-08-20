@@ -30,7 +30,8 @@ func init() {
 		{"json", "Print all tasks in json", printJSON},
 		{"save", "Save the database", save},
 		{"recomputeIds", "Recompute id for all tasks. Warning! this will change all ids.", recomputeIds},
-		{"setstatus", "Set task status to done", setStatus},
+		{"done", "Set task status to done", done},
+		{"open", "Set task status to open", open},
 	}
 }
 
@@ -123,20 +124,37 @@ func addTask(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	fmt.Printf("Task %d created\n", task.ID)
 }
 
-func setStatus(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
+func done(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	cmdArgs := tokenize(cmdLine)
-	if len(cmdArgs) == 3 {
+	if len(cmdArgs) == 2 {
 		id, err := strconv.Atoi(cmdArgs[1])
 		if err != nil {
 			fmt.Println("First arg need to be an integer")
 			return
 		}
 		task := findByID(db.Tasks, id)
-		task.Status = cmdArgs[2]
+		task.Status = "done"
 		// Print result
 		fmt.Fprintln(stdout, task.AnsiString())
 	} else {
-		fmt.Println("You need to specify task id and new status")
+		fmt.Println("You need to specify task id")
+	}
+}
+
+func open(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
+	cmdArgs := tokenize(cmdLine)
+	if len(cmdArgs) == 2 {
+		id, err := strconv.Atoi(cmdArgs[1])
+		if err != nil {
+			fmt.Println("First arg need to be an integer")
+			return
+		}
+		task := findByID(db.Tasks, id)
+		task.Status = "done"
+		// Print result
+		fmt.Fprintln(stdout, task.AnsiString())
+	} else {
+		fmt.Println("You need to specify task id")
 	}
 }
 
