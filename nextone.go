@@ -7,10 +7,12 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/mattn/go-colorable"
 	"github.com/mgutz/ansi"
@@ -19,6 +21,9 @@ import (
 
 // DbFileName is the default file name find in user home
 const DbFileName = "db.task"
+
+// HistoryFileName is the name of the nextone cmd line history
+const HistoryFileName = ".nextone_history"
 
 // DbEnvPath is an environment variable that helps configure db path
 const DbEnvPath = "NEXTONE_DB_PATH"
@@ -34,11 +39,11 @@ func main() {
 
 	flag.Parse()
 
+	u, err := user.Current()
 	if *dbFlag == "" {
 		// open db.task file in user home
 		dbPath = os.Getenv(DbEnvPath)
 		if dbPath == "" {
-			u, err := user.Current()
 			if err != nil {
 				fmt.Print(err)
 				return
@@ -59,7 +64,8 @@ func main() {
 	// sort task
 	sort.Sort(TaskByTime(db.Tasks))
 
-	interactive(stdout, db)
+	historyPath := filepath.Join(u.HomeDir, HistoryFileName)
+	interactive(stdout, db, historyPath)
 }
 
 func openDatabase(dbPath string) (*JSONDb, error) {
@@ -118,9 +124,15 @@ func saveDatabase(dbPath string, db *JSONDb) (err error) {
 	return nil
 }
 
-func interactive(stdout io.Writer, db *JSONDb) {
+func interactive(stdout io.Writer, db *JSONDb, historyPath string) {
 	line := liner.NewLiner()
 	defer line.Close()
+
+	f, err := os.Open(historyPath)
+	if err == nil {
+		defer f.Close()
+		line.ReadHistory(f)
+	}
 
 	line.SetCtrlCAborts(true)
 
@@ -133,7 +145,28 @@ func interactive(stdout io.Writer, db *JSONDb) {
 		return
 	})
 
+	saveHistory := func() {
+		fmt.Println("save history")
+		f, err := os.Create(historyPath)
+		if err != nil {
+			log.Print("Error writing history file: ", err)
+		} else {
+			defer f.Close()
+			line.WriteHistory(f)
+		}
+	}
+
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		// handle ctrl+c event here
+		saveHistory()
+		os.Exit(0)
+	}()
+
 	mainPrompt(line, stdout, db)
+	saveHistory()
 }
 
 func mainPrompt(line *liner.State, stdout io.Writer, db *JSONDb) {
