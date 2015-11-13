@@ -26,6 +26,8 @@ func init() {
 		{"help", "help <cmd> show help of a command", help},
 		{"show", "Show specific task by id", showTask},
 		{"list", "List task by status task and search criteria", listTasks},
+		{"addtag", "Add a tag to a task", addTag},
+		{"rmtag", "Remove a tag to a task", rmTag},
 		{"add", "Add a task", addTask},
 		{"json", "Print all tasks in json", printJSON},
 		{"save", "Save the database", save},
@@ -37,7 +39,7 @@ func init() {
 
 func execCommand(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 	for _, cmd := range commands {
-		if strings.HasPrefix(cmdLine, cmd.Name) {
+		if cmdLine == cmd.Name || strings.HasPrefix(cmdLine, cmd.Name+" ") {
 			cmd.Exec(stdout, db, line, cmdLine)
 			return
 		}
@@ -46,7 +48,11 @@ func execCommand(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string
 }
 
 func tokenize(cmdLine string) []string {
-	return strings.Split(cmdLine, " ")
+	args := strings.Split(strings.TrimSpace(cmdLine), " ")
+	for i, arg := range args {
+		args[i] = strings.TrimSpace(arg)
+	}
+	return args
 }
 
 func help(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
@@ -151,6 +157,52 @@ func open(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
 		}
 		task := findByID(db.Tasks, id)
 		task.Status = "done"
+		// Print result
+		fmt.Fprintln(stdout, task.AnsiString())
+	} else {
+		fmt.Println("You need to specify task id")
+	}
+}
+
+func addTag(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
+	cmdArgs := tokenize(cmdLine)
+	if len(cmdArgs) == 3 {
+		id, err := strconv.Atoi(cmdArgs[1])
+		if err != nil {
+			fmt.Println("First arg need to be an integer")
+			return
+		}
+		task := findByID(db.Tasks, id)
+		task.Tags = append(task.Tags, cmdArgs[2])
+		// Print result
+		fmt.Fprintln(stdout, task.AnsiString())
+	} else {
+		fmt.Println("You need to specify task id")
+	}
+}
+
+func rmTag(stdout io.Writer, db *JSONDb, line *liner.State, cmdLine string) {
+	cmdArgs := tokenize(cmdLine)
+	if len(cmdArgs) == 3 {
+		id, err := strconv.Atoi(cmdArgs[1])
+		if err != nil {
+			fmt.Println("First arg need to be an integer")
+			return
+		}
+		task := findByID(db.Tasks, id)
+
+		foundIndex := len(task.Tags)
+		for i, tag := range task.Tags {
+			if tag == cmdArgs[2] {
+				foundIndex = i
+				break
+			}
+		}
+		if foundIndex < len(task.Tags) {
+			// delete tag
+			task.Tags = append(task.Tags[:foundIndex], task.Tags[foundIndex+1:]...)
+		}
+
 		// Print result
 		fmt.Fprintln(stdout, task.AnsiString())
 	} else {
